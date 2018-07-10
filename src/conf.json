@@ -12,5 +12,16 @@
         "rootPath": "/"
       }
     }
+  },
+  "Logger": {
+    "Targets": [
+      {
+        "type": "ConsoleTarget"
+      },
+      {
+        "type": "FileTarget",
+        "FileName": "runtime/logs/app.log"
+      }
+    ]
   }
 }

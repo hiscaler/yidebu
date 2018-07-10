@@ -5,18 +5,30 @@ import (
 	"fmt"
 	"strings"
 	"github.com/kr/pretty"
+	"logger"
+	"config"
+	"path/filepath"
 )
-
-// git 项目路径
-var gitDir = ""
-// 忽略的文件
-var ignoreFiles = make([]string, 0)
 
 type Commit struct {
 	author   string
 	id       string
 	datetime string
 	comment  string
+}
+
+type Project struct {
+	gitDir     string
+	ignoreFile []string
+	ftp        FTP
+}
+
+type FTP struct {
+	hostname string
+	port     int
+	username string
+	password string
+	rootPath string
 }
 
 func parseCommandReturnResult(s string) []string {
@@ -34,10 +46,15 @@ func parseCommandReturnResult(s string) []string {
 }
 
 func main() {
-	cmd := exec.Command("cmd", "/Y", "/Q", "/K", `git --git-dir=`+gitDir+` log --pretty=format:"%cn|%H|%cd|%s" -10`)
+	// 获取项目配置
+	cfg := config.Instance()
+	projectName := "demo"
+	project := Project{}
+	cfg.Configure(&project, "projects."+projectName)
+	cmd := exec.Command("cmd", "/Y", "/Q", "/K", `git --git-dir=`+project.gitDir+` log --pretty=format:"%cn|%H|%cd|%s" -10`)
 	out, err := cmd.Output()
 	if err != nil {
-		fmt.Printf("Run return erros: %s\n", err)
+		logger.Instance.Info(fmt.Sprintf("Run return erros: %s\n", err))
 	} else {
 		fmt.Printf("Raw output: \n%s\n", out)
 		commits := make([]Commit, 0)
@@ -55,28 +72,28 @@ func main() {
 		updateFiles := make(map[string]string, 0)
 		for _, commit := range commits {
 			fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commit)))
-			gitShowCommand := `git --git-dir=` + gitDir + ` show ` + commit.id + ` --name-only --pretty=format:"%f"`
+			gitShowCommand := `git --git-dir=` + project.gitDir + ` show ` + commit.id + ` --name-only --pretty=format:"%f"`
 			cmd = exec.Command("cmd", "/Y", "/Q", "/K", gitShowCommand)
 			out, err = cmd.Output()
 			if err != nil {
-				fmt.Printf("Run return erros: %s\n", err)
+				logger.Instance.Error(fmt.Sprintf("Run return erros: %s\n", err))
 			} else {
 				rows = parseCommandReturnResult(string(out))
 				for _, row := range rows {
 					updateFiles[row] = row
 				}
-				fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(rows)))
+				logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(rows)))
 			}
 		}
 
 		if len(updateFiles) > 0 {
 			fmt.Println("Update files")
-			fmt.Println(strings.Repeat("#", 80))
+			projectDir := project.gitDir[:len(project.gitDir)-4]
 			for _, file := range updateFiles {
-				fmt.Println(fmt.Sprintf("%s", file))
-				// FTP upload file
-				//fullPath := gitDir + file
-				//fmt.Println(fullPath)
+				logger.Instance.Info(fmt.Sprintf("%s", file))
+				// Use FTP upload file
+				fullPath := filepath.Join(projectDir, file)
+				fmt.Println(fullPath)
 			}
 		} else {
 			fmt.Println("No update files.")
