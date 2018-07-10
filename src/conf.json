@@ -1,0 +1,16 @@
+{
+  "debug": true,
+  "projects": {
+    "project-name": {
+      "gitDir": "",
+      "ignoreFiles": [],
+      "ftp": {
+        "host": "",
+        "port": "21",
+        "username": "",
+        "password": "",
+        "rootPath": "/"
+      }
+    }
+  }
+}
