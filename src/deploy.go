@@ -58,45 +58,48 @@ func main() {
 	} else {
 		fmt.Printf("Raw output: \n%s\n", out)
 		commits := make([]Commit, 0)
-		rows := strings.Split(string(out), "\n")
-		rows = rows[0 : len(rows)-1] // Remove command prompt line
-		for _, row := range rows {
-			c := strings.Trim(string(row), "\"\r\n")
-			fmt.Println("row = " + c)
-			t := strings.Split(string(c), "|")
-			commits = append(commits, Commit{
-				t[0], t[1], t[2], t[3],
-			})
-		}
-		fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commits)))
-		updateFiles := make(map[string]string, 0)
-		for _, commit := range commits {
-			fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commit)))
-			gitShowCommand := `git --git-dir=` + project.gitDir + ` show ` + commit.id + ` --name-only --pretty=format:"%f"`
-			cmd = exec.Command("cmd", "/Y", "/Q", "/K", gitShowCommand)
-			out, err = cmd.Output()
-			if err != nil {
-				logger.Instance.Error(fmt.Sprintf("Run return erros: %s\n", err))
-			} else {
-				rows = parseCommandReturnResult(string(out))
-				for _, row := range rows {
-					updateFiles[row] = row
-				}
-				logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(rows)))
+		rows := parseCommandReturnResult(string(out))
+		if len(rows) > 0 {
+			for _, row := range rows {
+				c := strings.Trim(string(row), "\"\r\n")
+				fmt.Println("row = " + c)
+				t := strings.Split(string(c), "|")
+				commits = append(commits, Commit{
+					t[0], t[1], t[2], t[3],
+				})
 			}
-		}
+			fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commits)))
+			updateFiles := make(map[string]string, 0)
+			for _, commit := range commits {
+				fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commit)))
+				gitShowCommand := `git --git-dir=` + project.gitDir + ` show ` + commit.id + ` --name-only --pretty=format:"%f"`
+				cmd = exec.Command("cmd", "/Y", "/Q", "/K", gitShowCommand)
+				out, err = cmd.Output()
+				if err != nil {
+					logger.Instance.Error(fmt.Sprintf("Run return erros: %s\n", err))
+				} else {
+					rows = parseCommandReturnResult(string(out))
+					for _, row := range rows {
+						updateFiles[row] = row
+					}
+					logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(rows)))
+				}
+			}
 
-		if len(updateFiles) > 0 {
-			fmt.Println("Update files")
-			projectDir := project.gitDir[:len(project.gitDir)-4]
-			for _, file := range updateFiles {
-				logger.Instance.Info(fmt.Sprintf("%s", file))
-				// Use FTP upload file
-				fullPath := filepath.Join(projectDir, file)
-				fmt.Println(fullPath)
+			if len(updateFiles) > 0 {
+				fmt.Println("Update files")
+				projectDir := project.gitDir[:len(project.gitDir)-4]
+				for _, file := range updateFiles {
+					logger.Instance.Info(fmt.Sprintf("%s", file))
+					// Use FTP upload file
+					fullPath := filepath.Join(projectDir, file)
+					fmt.Println(fullPath)
+				}
+			} else {
+				logger.Instance.Info("No update files.")
 			}
 		} else {
-			fmt.Println("No update files.")
+			logger.Instance.Error("Not find commits")
 		}
 	}
 }
