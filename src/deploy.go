@@ -93,7 +93,7 @@ func main() {
 					for _, row := range rows {
 						updateFiles[row] = row
 					}
-					logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(rows)))
+					logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(updateFiles)))
 				}
 			}
 
@@ -101,6 +101,7 @@ func main() {
 				fmt.Println("Update files")
 				ftpClient, err := ftp.Connect(project.Ftp.hostname + ":" + project.Ftp.port)
 				if err == nil {
+					defer ftpClient.Quit()
 					if err := ftpClient.Login(project.Ftp.username, project.Ftp.password); err != nil {
 						logger.Instance.Error("FTP login error: " + err.Error())
 					} else {
@@ -128,7 +129,9 @@ func main() {
 							localFilePath := filepath.Join(project.Dir, file)
 							logger.Instance.Info("Local file: " + localFilePath)
 							logger.Instance.Info("Remote file: " + file)
-							if f, err := os.Open(localFilePath); err == nil {
+							f, err := os.Open(localFilePath)
+							defer f.Close()
+							if err == nil {
 								if err := ftpClient.Stor(path.Base(file), f); err == nil {
 									uploadedFilesCount += 1
 									logger.Instance.Info("FTP store file success: " + path.Clean(file))
