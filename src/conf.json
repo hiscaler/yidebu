@@ -20,7 +20,8 @@
       },
       {
         "type": "FileTarget",
-        "FileName": "runtime/logs/app.log"
+        "FileName": "runtime/logs/app.log",
+        "MaxLevel": 7
       }
     ]
   }
