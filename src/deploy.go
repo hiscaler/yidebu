@@ -49,6 +49,7 @@ func parseCommandReturnResult(s string) []string {
 	return res
 }
 
+// 基于 git 的简易代码 FTP 部署工具
 func main() {
 	// 获取项目配置
 	cfg := config.Instance()
@@ -67,19 +68,19 @@ func main() {
 	if err != nil {
 		logger.Instance.Info(fmt.Sprintf("Run return erros: %s\n", err))
 	} else {
-		fmt.Printf("Raw output: \n%s\n", out)
+		logger.Instance.Info(fmt.Sprintf("Raw content: %s", out))
 		commits := make([]Commit, 0)
 		rows := parseCommandReturnResult(string(out))
 		if len(rows) > 0 {
 			for _, row := range rows {
 				c := strings.Trim(string(row), "\"\r\n")
-				fmt.Println("row = " + c)
+				logger.Instance.Info("row = " + c)
 				t := strings.Split(string(c), "|")
 				commits = append(commits, Commit{
 					t[0], t[1], t[2], t[3],
 				})
 			}
-			fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commits)))
+			logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(commits)))
 			updateFiles := make(map[string]string, 0)
 			for _, commit := range commits {
 				fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commit)))
