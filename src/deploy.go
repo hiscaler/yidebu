@@ -173,7 +173,16 @@ func main() {
 						} else {
 							rows = parseCommandReturnResult(string(out))
 							for _, row := range rows {
-								updateFiles[row] = row
+								ignore := false
+								for _, f := range activeProject.IgnoreFiles {
+									if f == row {
+										ignore = true
+									}
+								}
+								if !ignore {
+									updateFiles[row] = row
+								}
+
 							}
 							logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(updateFiles)))
 						}
