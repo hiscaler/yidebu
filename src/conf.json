@@ -1,15 +1,18 @@
 {
   "debug": true,
   "projects": {
-    "project-name": {
-      "gitDir": "",
-      "ignoreFiles": [],
-      "ftp": {
-        "host": "",
-        "port": "21",
-        "username": "",
-        "password": "",
-        "rootPath": "/"
+    "demo": {
+      "GitDir": "",
+      "IgnoreFiles": [
+        "file1",
+        "file2"
+      ],
+      "Ftp": {
+        "Hostname": "127.0.0.1",
+        "Port": "21",
+        "Username": "",
+        "Password": "",
+        "RootPath": "/"
       }
     }
   },

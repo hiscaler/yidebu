@@ -28,11 +28,11 @@ type Project struct {
 }
 
 type FTP struct {
-	hostname string
-	port     string
-	username string
-	password string
-	rootPath string
+	Hostname string
+	Port     string
+	Username string
+	Password string
+	RootPath string
 }
 
 func parseCommandReturnResult(s string) []string {
@@ -53,17 +53,20 @@ func parseCommandReturnResult(s string) []string {
 func main() {
 	// 获取项目配置
 	cfg := config.Instance()
-	cfgPathPrefix := "projects.Demo."
-	project := new(Project)
-	project.GitDir = filepath.ToSlash(cfg.GetString(cfgPathPrefix + "gitDir"))
-	project.Dir = project.GitDir[:len(project.GitDir)-4]
-	project.Ftp.hostname = cfg.GetString(cfgPathPrefix + "ftp.host")
-	project.Ftp.port = cfg.GetString(cfgPathPrefix + "ftp.port")
-	project.Ftp.username = cfg.GetString(cfgPathPrefix + "ftp.username")
-	project.Ftp.password = cfg.GetString(cfgPathPrefix + "ftp.password")
-	project.Ftp.rootPath = cfg.GetString(cfgPathPrefix + "ftp.rootPath")
-
-	cmd := exec.Command("cmd", "/Y", "/Q", "/K", `git --git-dir=`+project.GitDir+` log --pretty=format:"%cn|%H|%cd|%s" -10`)
+	cfgPathPrefix := "projects.demo"
+	activeProject := new(Project)
+	cfg.Configure(&activeProject, cfgPathPrefix)
+	logger.Instance.Info(fmt.Sprintf("%#v", activeProject))
+	activeProject.GitDir = filepath.ToSlash(activeProject.GitDir)
+	if len(activeProject.GitDir) == 0 {
+		logger.Instance.Error("请检查配置文件是否正确。")
+		os.Exit(0)
+	}
+	if len(activeProject.GitDir) > 4 {
+		activeProject.Dir = activeProject.GitDir[:len(activeProject.GitDir)-4]
+	}
+	
+	cmd := exec.Command("cmd", "/Y", "/Q", "/K", `git --git-dir=`+activeProject.GitDir+` log --pretty=format:"%cn|%H|%cd|%s" -10`)
 	out, err := cmd.Output()
 	if err != nil {
 		logger.Instance.Info(fmt.Sprintf("Run return erros: %s\n", err))
@@ -84,7 +87,7 @@ func main() {
 			updateFiles := make(map[string]string, 0)
 			for _, commit := range commits {
 				fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commit)))
-				gitShowCommand := `git --git-dir=` + project.GitDir + ` show ` + commit.id + ` --name-only --pretty=format:"%f"`
+				gitShowCommand := `git --git-dir=` + activeProject.GitDir + ` show ` + commit.id + ` --name-only --pretty=format:"%f"`
 				cmd = exec.Command("cmd", "/Y", "/Q", "/K", gitShowCommand)
 				out, err = cmd.Output()
 				if err != nil {
@@ -100,17 +103,17 @@ func main() {
 
 			if len(updateFiles) > 0 {
 				fmt.Println("Update files")
-				ftpClient, err := ftp.Connect(project.Ftp.hostname + ":" + project.Ftp.port)
+				ftpClient, err := ftp.Connect(activeProject.Ftp.Hostname + ":" + activeProject.Ftp.Port)
 				if err == nil {
 					defer ftpClient.Quit()
-					if err := ftpClient.Login(project.Ftp.username, project.Ftp.password); err != nil {
+					if err := ftpClient.Login(activeProject.Ftp.Username, activeProject.Ftp.Password); err != nil {
 						logger.Instance.Error("FTP login error: " + err.Error())
 					} else {
 						uploadedFilesCount := 0
 						for _, file := range updateFiles {
 							file = filepath.ToSlash(file)
-							ftpClient.ChangeDir(project.Ftp.rootPath)
-							tempPath := project.Ftp.rootPath
+							ftpClient.ChangeDir(activeProject.Ftp.RootPath)
+							tempPath := activeProject.Ftp.RootPath
 							dirs := strings.Split(path.Dir(file), "/")
 							for _, dir := range dirs {
 								currentDir, _ := ftpClient.CurrentDir()
@@ -127,7 +130,7 @@ func main() {
 							}
 							logger.Instance.Info(fmt.Sprintf("%s", file))
 							// Use FTP upload file
-							localFilePath := filepath.Join(project.Dir, file)
+							localFilePath := filepath.Join(activeProject.Dir, file)
 							logger.Instance.Info("Local file: " + localFilePath)
 							logger.Instance.Info("Remote file: " + file)
 							f, err := os.Open(localFilePath)
