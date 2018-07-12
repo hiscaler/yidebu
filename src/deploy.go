@@ -50,6 +50,60 @@ func parseCommandReturnResult(s string) []string {
 	return res
 }
 
+type Git struct {
+	name              string
+	path              string
+	branch            string // 当前所操作的分支
+	tag               string //  当前所操作的标签
+	fetchCommitNumber int    // 拉取的提交数量
+}
+
+func (g *Git) execCommand(args ...string) ([]byte, error) {
+	cmd := exec.Command("cmd", "/Y", "/Q", "/K", `git --git-dir=`+g.path+strings.Join(args[:], " "))
+	return cmd.Output()
+}
+
+func (g *Git) changeBranch(name string) (bool, error) {
+	_, err := g.execCommand("checkout", name)
+
+	return err == nil, err
+}
+
+func (g *Git) commits() []string {
+	commits := make([]string, 0)
+
+	return commits
+}
+
+// 显示当前 git 仓库的所有标签
+func (g *Git) tags() []string {
+	tags := make([]string, 0)
+
+	return tags
+}
+
+func (g *Git) hasTag(name string) bool {
+	has := false
+	if len(name) > 0 {
+		for _, tag := range g.tags() {
+			if tag == name {
+				has = true
+				break
+			}
+		}
+	}
+
+	return has
+}
+
+// Get update and delete files
+func (g *Git) Files() ([]string, []string) {
+	updateFiles := make([]string, 0)
+	deleteFiles := make([]string, 0)
+
+	return updateFiles, deleteFiles
+}
+
 // 基于 git 的简易代码 FTP 部署工具
 func main() {
 	var p string
