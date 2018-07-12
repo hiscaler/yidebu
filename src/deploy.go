@@ -56,10 +56,16 @@ type Git struct {
 	branch            string // 当前所操作的分支
 	tag               string //  当前所操作的标签
 	fetchCommitNumber int    // 拉取的提交数量
+	project           Project
 }
 
 func (g *Git) execCommand(args ...string) ([]byte, error) {
-	cmd := exec.Command("cmd", "/Y", "/Q", "/K", `git --git-dir=`+g.path+strings.Join(args[:], " "))
+	gitCommand := `git --git-dir=` + g.path
+	if len(args) > 0 {
+		gitCommand += " " + strings.Join(args[:], " ")
+	}
+	logger.Instance.Info(gitCommand)
+	cmd := exec.Command("cmd", "/Y", "/Q", "/K", gitCommand)
 	return cmd.Output()
 }
 
@@ -100,16 +106,59 @@ func (g *Git) hasTag(name string) bool {
 func (g *Git) Files() ([]string, []string) {
 	updateFiles := make([]string, 0)
 	deleteFiles := make([]string, 0)
+	out, err := g.execCommand(`log --pretty=format:"%cn|%H|%cd|%s`, "-"+strconv.Itoa(g.fetchCommitNumber))
+	if err != nil {
+		logger.Instance.Info(fmt.Sprintf("Run return erros: %s\n", err))
+	} else {
+		logger.Instance.Info(fmt.Sprintf("Raw content: %s", out))
+		commits := make([]Commit, 0)
+		rows := parseCommandReturnResult(string(out))
+		fmt.Println(rows)
+		if len(rows) > 0 {
+			for _, row := range rows {
+				c := strings.Trim(string(row), "\"\r\n")
+				logger.Instance.Info("row = " + c)
+				t := strings.Split(string(c), "|")
+				commits = append(commits, Commit{
+					t[0], t[1], t[2], t[3],
+				})
+			}
+			logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(commits)))
+			for _, commit := range commits {
+				fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commit)))
+				out, err = g.execCommand("show", commit.id, `--name-only --pretty=format:"%f"`)
+				if err != nil {
+					logger.Instance.Error(fmt.Sprintf("Run return erros: %s\n", err))
+				} else {
+					rows = parseCommandReturnResult(string(out))
+					for _, row := range rows {
+						ignore := false
+						for _, f := range g.project.IgnoreFiles {
+							if f == row {
+								ignore = true
+							}
+						}
+						if !ignore {
+							updateFiles = append(updateFiles, row)
+						}
+					}
+					logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(updateFiles)))
+				}
+			}
+		}
+	}
 
 	return updateFiles, deleteFiles
 }
 
 // 基于 git 的简易代码 FTP 部署工具
 func main() {
-	var p string
+	var p, branchName, tag string
 	var n int
-	flag.StringVar(&p, "p", "", "请输入您要处理的项目")
-	flag.IntVar(&n, "n", 10, "请输入您要拉取的数据条数")
+	flag.StringVar(&p, "p", "", "处理的项目名称")
+	flag.IntVar(&n, "n", 10, "要拉取的数据条数")
+	flag.StringVar(&branchName, "b", "master", "分支名称")
+	flag.StringVar(&tag, "t", "", "Tag 名")
 	flag.Parse()
 	fmt.Printf("Project = %s, n = %d\n", p, n)
 
