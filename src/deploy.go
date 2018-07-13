@@ -202,7 +202,7 @@ func main() {
 	flag.StringVar(&p, "p", "", "处理的项目名称")
 	flag.IntVar(&n, "n", 20, "要拉取的数据条数")
 	flag.StringVar(&branchName, "b", "master", "分支名称")
-	flag.StringVar(&tag, "t", "", "Tag 名")
+	flag.StringVar(&tag, "t", "", "tag 名")
 	flag.Parse()
 	if p == "" {
 		p = "demo"
