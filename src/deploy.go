@@ -10,8 +10,9 @@ import (
 	"os"
 	"os/exec"
 	"github.com/kr/pretty"
-	"github.com/jlaffaye/ftp"
+	"strconv"
 	"path"
+	"github.com/jlaffaye/ftp"
 )
 
 type Commit struct {
@@ -178,6 +179,7 @@ func main() {
 		logger.Instance.Info("Nothing ...")
 	} else {
 		logger.Instance.Info(fmt.Sprintf("Total %d project(s) will be process.", len(projects)))
+		git := new(Git)
 		for name, _ := range projects {
 			cfgPathPrefix := "projects." + name
 			logger.Instance.Info("Project `" + name + "` Begin...")
@@ -193,107 +195,72 @@ func main() {
 				activeProject.Dir = activeProject.GitDir[:len(activeProject.GitDir)-4]
 			}
 
-			cmd := exec.Command("cmd", "/Y", "/Q", "/K", `git --git-dir=`+activeProject.GitDir+` log --pretty=format:"%cn|%H|%cd|%s" -10`)
-			out, err := cmd.Output()
-			if err != nil {
-				logger.Instance.Info(fmt.Sprintf("Run return erros: %s\n", err))
-			} else {
-				logger.Instance.Info(fmt.Sprintf("Raw content: %s", out))
-				commits := make([]Commit, 0)
-				rows := parseCommandReturnResult(string(out))
-				if len(rows) > 0 {
-					for _, row := range rows {
-						c := strings.Trim(string(row), "\"\r\n")
-						logger.Instance.Info("row = " + c)
-						t := strings.Split(string(c), "|")
-						commits = append(commits, Commit{
-							t[0], t[1], t[2], t[3],
-						})
-					}
-					logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(commits)))
-					updateFiles := make(map[string]string, 0)
-					for _, commit := range commits {
-						fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commit)))
-						gitShowCommand := `git --git-dir=` + activeProject.GitDir + ` show ` + commit.id + ` --name-only --pretty=format:"%f"`
-						cmd = exec.Command("cmd", "/Y", "/Q", "/K", gitShowCommand)
-						out, err = cmd.Output()
-						if err != nil {
-							logger.Instance.Error(fmt.Sprintf("Run return erros: %s\n", err))
-						} else {
-							rows = parseCommandReturnResult(string(out))
-							for _, row := range rows {
-								ignore := false
-								for _, f := range activeProject.IgnoreFiles {
-									if f == row {
-										ignore = true
-									}
-								}
-								if !ignore {
-									updateFiles[row] = row
-								}
+			git.name = name
+			git.path = activeProject.GitDir
+			git.branch = branchName
+			git.tag = tag
+			git.project = *activeProject
+			git.fetchCommitNumber = n
+			fmt.Println(fmt.Sprintf("#%v", git))
 
-							}
-							logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(updateFiles)))
-						}
-					}
+			updateFiles, _ := git.Files()
+			for _, file := range updateFiles {
+				fmt.Println(file)
+			}
 
-					if len(updateFiles) > 0 {
-						fmt.Println("Update files")
-						ftpClient, err := ftp.Connect(activeProject.Ftp.Hostname + ":" + activeProject.Ftp.Port)
-						if err == nil {
-							defer ftpClient.Quit()
-							if err := ftpClient.Login(activeProject.Ftp.Username, activeProject.Ftp.Password); err != nil {
-								logger.Instance.Error("FTP login error: " + err.Error())
-							} else {
-								uploadedFilesCount := 0
-								for _, file := range updateFiles {
-									file = filepath.ToSlash(file)
-									ftpClient.ChangeDir(activeProject.Ftp.RootPath)
-									tempPath := activeProject.Ftp.RootPath
-									dirs := strings.Split(path.Dir(file), "/")
-									for _, dir := range dirs {
-										currentDir, _ := ftpClient.CurrentDir()
-										ftpClient.ChangeDir(currentDir)
-										tempPath = path.Join(tempPath, dir)
-										if err := ftpClient.ChangeDir(tempPath); err != nil {
-											if err := ftpClient.MakeDir(tempPath); err == nil {
-												ftpClient.ChangeDir(tempPath)
-											} else {
-												logger.Instance.Error("FTP make dir error: " + err.Error())
-												panic("FTP make dir error: " + err.Error())
-											}
-										}
-									}
-									logger.Instance.Info(fmt.Sprintf("%s", file))
-									// Use FTP upload file
-									localFilePath := filepath.Join(activeProject.Dir, file)
-									logger.Instance.Info("Local file: " + localFilePath)
-									logger.Instance.Info("Remote file: " + file)
-									f, err := os.Open(localFilePath)
-									defer f.Close()
-									if err == nil {
-										if err := ftpClient.Stor(path.Base(file), f); err == nil {
-											uploadedFilesCount += 1
-											logger.Instance.Info("FTP store file success: " + path.Clean(file))
-										} else {
-											logger.Instance.Info("FTP store file error: " + err.Error())
-										}
-									} else {
-										logger.Instance.Info("Open file error: " + err.Error())
-									}
-								}
-
-								logger.Instance.Info(fmt.Sprintf("Total %d files, %d files success upploaded", len(updateFiles), uploadedFilesCount))
-							}
-						} else {
-							logger.Instance.Error("FTP connection error: " + err.Error())
-						}
+			if len(updateFiles) > 0 {
+				fmt.Println("Update files")
+				ftpClient, err := ftp.Connect(activeProject.Ftp.Hostname + ":" + activeProject.Ftp.Port)
+				if err == nil {
+					defer ftpClient.Quit()
+					if err := ftpClient.Login(activeProject.Ftp.Username, activeProject.Ftp.Password); err != nil {
+						logger.Instance.Error("FTP login error: " + err.Error())
 					} else {
-						logger.Instance.Info("No update files.")
+						uploadedFilesCount := 0
+						for _, file := range updateFiles {
+							file = filepath.ToSlash(file)
+							ftpClient.ChangeDir(activeProject.Ftp.RootPath)
+							tempPath := activeProject.Ftp.RootPath
+							dirs := strings.Split(path.Dir(file), "/")
+							for _, dir := range dirs {
+								currentDir, _ := ftpClient.CurrentDir()
+								ftpClient.ChangeDir(currentDir)
+								tempPath = path.Join(tempPath, dir)
+								if err := ftpClient.ChangeDir(tempPath); err != nil {
+									if err := ftpClient.MakeDir(tempPath); err == nil {
+										ftpClient.ChangeDir(tempPath)
+									} else {
+										logger.Instance.Error("FTP make dir error: " + err.Error())
+										panic("FTP make dir error: " + err.Error())
+									}
+								}
+							}
+							logger.Instance.Info(fmt.Sprintf("%s", file))
+							// Use FTP upload file
+							localFilePath := filepath.Join(activeProject.Dir, file)
+							logger.Instance.Info("Local file: " + localFilePath)
+							logger.Instance.Info("Remote file: " + file)
+							f, err := os.Open(localFilePath)
+							defer f.Close()
+							if err == nil {
+								if err := ftpClient.Stor(path.Base(file), f); err == nil {
+									uploadedFilesCount += 1
+									logger.Instance.Info("FTP store file success: " + path.Clean(file))
+								} else {
+									logger.Instance.Info("FTP store file error: " + err.Error())
+								}
+							} else {
+								logger.Instance.Info("Open file error: " + err.Error())
+							}
+						}
+
+						logger.Instance.Info(fmt.Sprintf("Total %d files, %d files success upploaded", len(updateFiles), uploadedFilesCount))
 					}
 				} else {
-					logger.Instance.Error("Not find commits")
+					logger.Instance.Error("FTP connection error: " + err.Error())
 				}
+			} else {
+				logger.Instance.Info("No update files.")
 			}
 
 			logger.Instance.Info("Project `" + name + "` Done...")
