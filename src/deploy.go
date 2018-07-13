@@ -197,12 +197,22 @@ func main() {
 		branchName string // Git branch name
 		tag        string // Git tag
 		n          int    // How much commits per time
+		h          bool   // Helps
 	)
+	flag.BoolVar(&h, "h", false, "使用说明")
 	flag.StringVar(&p, "p", "", "处理的项目名称")
 	flag.IntVar(&n, "n", 20, "要拉取的数据条数")
 	flag.StringVar(&branchName, "b", "master", "分支名称")
-	flag.StringVar(&tag, "t", "", "tag 名")
+	flag.StringVar(&tag, "t", "", "标签名")
 	flag.Parse()
+	if h {
+		fmt.Fprintf(os.Stderr, `使用方法: ./deploy [-hpnbt] [-p project-name] [-n fetch numbers] [-b branch-name] [-t tag-name]
+参数详细说明:
+`)
+		flag.PrintDefaults()
+		os.Exit(0)
+	}
+
 	if p == "" {
 		p = "demo"
 	}
