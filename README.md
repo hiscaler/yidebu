@@ -21,7 +21,7 @@ deploy.exe -p=YOU-PROJECT-NAME-IN-CONF.JSON-FILE -b=master -n=20
         分支名称 (默认 "master" 分支)
         
   -n int
-    `   要拉取的数据条数 (默认 20 条)
+        要拉取的数据条数 (默认 20 条)
     
   -p string
         处理的项目名称
