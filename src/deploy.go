@@ -151,9 +151,8 @@ func (g *Git) hasTag(name string) bool {
 
 // Get update and delete files
 func (g *Git) Files() ([]string, []string) {
-	// Slice len is g.fetchCommitNumber * 2 is discreet value, two files about per commit
-	updateFiles := make([]string, g.fetchCommitNumber*2)
-	deleteFiles := make([]string, g.fetchCommitNumber*2)
+	updateFiles := make([]string, 0)
+	deleteFiles := make([]string, 0)
 	commits := g.commits()
 	logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(commits)))
 	for _, commit := range commits {
