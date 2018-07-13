@@ -40,7 +40,9 @@ type FTP struct {
 func parseCommandReturnResult(s string) []string {
 	res := make([]string, 0)
 	rows := strings.Split(s, "\n")
-	rows = rows[0 : len(rows)-1] // Remove command prompt line
+	if len(rows) > 0 {
+		rows = rows[0 : len(rows)-1] // Remove command prompt line
+	}
 	for _, row := range rows {
 		row = strings.Trim(row, "\r\n\\\"")
 		if len(row) != 0 {
