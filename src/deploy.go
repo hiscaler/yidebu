@@ -151,8 +151,9 @@ func (g *Git) hasTag(name string) bool {
 
 // Get update and delete files
 func (g *Git) Files() ([]string, []string) {
-	updateFiles := make([]string, 0)
-	deleteFiles := make([]string, 0)
+	// Slice len is g.fetchCommitNumber * 2 is discreet value, two files about per commit
+	updateFiles := make([]string, g.fetchCommitNumber*2)
+	deleteFiles := make([]string, g.fetchCommitNumber*2)
 	commits := g.commits()
 	logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(commits)))
 	for _, commit := range commits {
@@ -170,7 +171,17 @@ func (g *Git) Files() ([]string, []string) {
 					}
 				}
 				if !ignore {
-					updateFiles = append(updateFiles, row)
+					// unique file name in `updateFiles` variable
+					exists := false
+					for _, t := range updateFiles {
+						if row == t {
+							exists = true
+							break
+						}
+					}
+					if !exists {
+						updateFiles = append(updateFiles, row)
+					}
 				}
 			}
 			logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(updateFiles)))
