@@ -293,7 +293,6 @@ func main() {
 						logger.Instance.Info("Local file: " + localFilePath)
 						logger.Instance.Info("Remote file: " + file)
 						f, err := os.Open(localFilePath)
-						defer f.Close()
 						if err == nil {
 							if err := ftpClient.Stor(path.Base(file), f); err == nil {
 								uploadedFilesCount += 1
@@ -301,6 +300,7 @@ func main() {
 							} else {
 								logger.Instance.Info("FTP store file error: " + err.Error())
 							}
+							f.Close()
 						} else {
 							logger.Instance.Info("Open file error: " + err.Error())
 						}
