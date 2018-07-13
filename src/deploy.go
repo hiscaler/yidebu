@@ -72,14 +72,58 @@ func (g *Git) execCommand(args ...string) ([]byte, error) {
 	return cmd.Output()
 }
 
-func (g *Git) changeBranch(name string) (bool, error) {
-	_, err := g.execCommand("checkout", name)
+func (g *Git) changeBranch() (bool, error) {
+	if g.branch == "" {
+		g.branch = "master"
+	}
+	_, err := g.execCommand("checkout", g.branch)
 
 	return err == nil, err
 }
 
-func (g *Git) commits() []string {
-	commits := make([]string, 0)
+func (g *Git) commits() []Commit {
+	commits := make([]Commit, 0)
+	g.changeBranch()
+	rows := make([]string, 0)
+	if g.tag != "" {
+		// Get by tag
+		sign := "git-tag-sign:"
+		out, err := g.execCommand(`show `+g.tag+` --format="`+sign+`%cn|%H|%cd|%s"`, "-n"+strconv.Itoa(g.fetchCommitNumber))
+		if err != nil {
+			logger.Instance.Info(fmt.Sprintf("Run return erros: %s\n", err))
+		} else {
+			logger.Instance.Info(fmt.Sprintf("Raw content: %s", out))
+			t := strings.Split(string(out), "\n")
+			for _, row := range t {
+				row = strings.Trim(row, "\r\n\\\"")
+				if len(row) != 0 && strings.HasPrefix(row, sign) {
+					rows = append(rows, row[len(sign):])
+				}
+			}
+		}
+	} else {
+		// Get by latest commits
+		out, err := g.execCommand(`log --pretty=format:"%cn|%H|%cd|%s`, "-"+strconv.Itoa(g.fetchCommitNumber))
+		if err != nil {
+			logger.Instance.Info(fmt.Sprintf("Run return erros: %s\n", err))
+		} else {
+			logger.Instance.Info(fmt.Sprintf("Raw content: %s", out))
+			rows := parseCommandReturnResult(string(out))
+			fmt.Println(rows)
+		}
+	}
+
+	if len(rows) > 0 {
+		for _, row := range rows {
+			c := strings.Trim(string(row), "\"\r\n")
+			logger.Instance.Info("row = " + c)
+			t := strings.Split(string(c), "|")
+			commits = append(commits, Commit{
+				t[0], t[1], t[2], t[3],
+			})
+		}
+	}
+	logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(commits)))
 
 	return commits
 }
@@ -109,45 +153,27 @@ func (g *Git) hasTag(name string) bool {
 func (g *Git) Files() ([]string, []string) {
 	updateFiles := make([]string, 0)
 	deleteFiles := make([]string, 0)
-	out, err := g.execCommand(`log --pretty=format:"%cn|%H|%cd|%s`, "-"+strconv.Itoa(g.fetchCommitNumber))
-	if err != nil {
-		logger.Instance.Info(fmt.Sprintf("Run return erros: %s\n", err))
-	} else {
-		logger.Instance.Info(fmt.Sprintf("Raw content: %s", out))
-		commits := make([]Commit, 0)
-		rows := parseCommandReturnResult(string(out))
-		fmt.Println(rows)
-		if len(rows) > 0 {
+	commits := g.commits()
+	logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(commits)))
+	for _, commit := range commits {
+		fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commit)))
+		out, err := g.execCommand("show", commit.id, `--name-only --pretty=format:"%f"`)
+		if err != nil {
+			logger.Instance.Error(fmt.Sprintf("Run return erros: %s\n", err))
+		} else {
+			rows := parseCommandReturnResult(string(out))
 			for _, row := range rows {
-				c := strings.Trim(string(row), "\"\r\n")
-				logger.Instance.Info("row = " + c)
-				t := strings.Split(string(c), "|")
-				commits = append(commits, Commit{
-					t[0], t[1], t[2], t[3],
-				})
-			}
-			logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(commits)))
-			for _, commit := range commits {
-				fmt.Println(fmt.Sprintf("%# v", pretty.Formatter(commit)))
-				out, err = g.execCommand("show", commit.id, `--name-only --pretty=format:"%f"`)
-				if err != nil {
-					logger.Instance.Error(fmt.Sprintf("Run return erros: %s\n", err))
-				} else {
-					rows = parseCommandReturnResult(string(out))
-					for _, row := range rows {
-						ignore := false
-						for _, f := range g.project.IgnoreFiles {
-							if f == row {
-								ignore = true
-							}
-						}
-						if !ignore {
-							updateFiles = append(updateFiles, row)
-						}
+				ignore := false
+				for _, f := range g.project.IgnoreFiles {
+					if f == row {
+						ignore = true
 					}
-					logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(updateFiles)))
+				}
+				if !ignore {
+					updateFiles = append(updateFiles, row)
 				}
 			}
+			logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(updateFiles)))
 		}
 	}
 
@@ -157,16 +183,26 @@ func (g *Git) Files() ([]string, []string) {
 // 基于 git 的简易代码 FTP 部署工具
 func main() {
 	var (
-		p          string
-		branchName string
-		tag        string
-		n          int
+		p          string // Project name
+		branchName string // Git branch name
+		tag        string // Git tag
+		n          int    // How much commits per time
 	)
 	flag.StringVar(&p, "p", "", "处理的项目名称")
-	flag.IntVar(&n, "n", 10, "要拉取的数据条数")
+	flag.IntVar(&n, "n", 20, "要拉取的数据条数")
 	flag.StringVar(&branchName, "b", "master", "分支名称")
 	flag.StringVar(&tag, "t", "", "Tag 名")
 	flag.Parse()
+	if p == "" {
+		p = "demo"
+	}
+	if n == 0 {
+		n = 20
+	}
+	if branchName == "" {
+		branchName = "master"
+	}
+
 	fmt.Printf("Project = %s, n = %d\n", p, n)
 
 	// 获取项目配置
@@ -208,6 +244,7 @@ func main() {
 		fmt.Println(fmt.Sprintf("#%v", git))
 
 		updateFiles, _ := git.Files()
+		logger.Instance.Info(fmt.Sprintf("%# v", pretty.Formatter(updateFiles)))
 		for _, file := range updateFiles {
 			fmt.Println(file)
 		}
