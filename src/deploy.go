@@ -86,18 +86,20 @@ func (g *Git) commits() []Commit {
 	g.changeBranch()
 	rows := make([]string, 0)
 	if g.tag != "" {
-		// Get by tag
-		sign := "git-tag-sign:"
-		out, err := g.execCommand(`show `+g.tag+` --format="`+sign+`%cn|%H|%cd|%s"`, "-n"+strconv.Itoa(g.fetchCommitNumber))
-		if err != nil {
-			logger.Instance.Info(fmt.Sprintf("Run return erros: %s\n", err))
-		} else {
-			logger.Instance.Info(fmt.Sprintf("Raw content: %s", out))
-			t := strings.Split(string(out), "\n")
-			for _, row := range t {
-				row = strings.Trim(row, "\r\n\\\"")
-				if len(row) != 0 && strings.HasPrefix(row, sign) {
-					rows = append(rows, row[len(sign):])
+		if g.hasTag() {
+			// Get by tag
+			sign := "git-tag-sign:"
+			out, err := g.execCommand(`show `+g.tag+` --format="`+sign+`%cn|%H|%cd|%s"`, "-n"+strconv.Itoa(g.fetchCommitNumber))
+			if err != nil {
+				logger.Instance.Info(fmt.Sprintf("Run return erros: %s\n", err))
+			} else {
+				logger.Instance.Info(fmt.Sprintf("Raw content: %s", out))
+				t := strings.Split(string(out), "\n")
+				for _, row := range t {
+					row = strings.Trim(row, "\r\n\\\"")
+					if len(row) != 0 && strings.HasPrefix(row, sign) {
+						rows = append(rows, row[len(sign):])
+					}
 				}
 			}
 		}
@@ -130,16 +132,19 @@ func (g *Git) commits() []Commit {
 
 // 显示当前 git 仓库的所有标签
 func (g *Git) tags() []string {
-	tags := make([]string, 0)
-
-	return tags
+	res, err := g.execCommand("tag")
+	if err == nil {
+		return parseCommandReturnResult(string(res))
+	} else {
+		return make([]string, 0)
+	}
 }
 
-func (g *Git) hasTag(name string) bool {
+func (g *Git) hasTag() bool {
 	has := false
-	if len(name) > 0 {
+	if len(g.tag) > 0 {
 		for _, tag := range g.tags() {
-			if tag == name {
+			if tag == g.tag {
 				has = true
 				break
 			}
