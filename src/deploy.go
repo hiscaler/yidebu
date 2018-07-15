@@ -69,6 +69,7 @@ func (g *Git) execCommand(args ...string) ([]byte, error) {
 	}
 	logger.Instance.Info(gitCommand)
 	cmd := exec.Command("cmd", "/Y", "/Q", "/K", gitCommand)
+
 	return cmd.Output()
 }
 
